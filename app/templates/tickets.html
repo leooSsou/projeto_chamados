@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Chamados · Chamados TI{% endblock %}
+{% block content %}
+<section class="section-head">
+  <div>
+    <h1>Chamados</h1>
+    <p>{{ "Todos os chamados registrados" if user.profile == "Suporte" else "Seus chamados registrados" }}</p>
+  </div>
+  <a class="button" href="/tickets/new">Novo chamado</a>
+</section>
+
+<form class="filters" method="get">
+  {% if user.profile == "Suporte" %}
+  <label>
+    Hotel
+    <select name="hotel">
+      <option value="">Todos</option>
+      {% for item in hotels %}
+      <option value="{{ item }}" {% if filters.hotel == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% endif %}
+  <label>
+    Status
+    <select name="status">
+      <option value="">Todos</option>
+      {% for item in statuses %}
+      <option value="{{ item }}" {% if filters.status == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Busca
+    <input name="q" value="{{ filters.q }}" placeholder="Código ou descrição">
+  </label>
+  <button type="submit">Filtrar</button>
+  <a class="text-link" href="/tickets">Limpar</a>
+</form>
+
+<section class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Data</th>
+        <th>Hotel</th>
+        <th>Solicitante</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ticket in tickets %}
+      <tr>
+        <td>{{ ticket.code }}</td>
+        <td>{{ ticket.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+        <td>{{ ticket.hotel }}</td>
+        <td>{{ ticket.requester.username }}</td>
+        <td><span class="status">{{ ticket.status }}</span></td>
+        <td><a class="text-link" href="/tickets/{{ ticket.id }}">Abrir</a></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6" class="empty">Nenhum chamado encontrado.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

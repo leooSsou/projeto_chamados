@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Chamados{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+</head>
+<body>
+  {% if user %}
+  <header class="topbar">
+    <a class="brand" href="/tickets">Chamados TI</a>
+    <nav class="nav">
+      <a href="/tickets">Chamados</a>
+      <a href="/tickets/new">Novo</a>
+      {% if user.profile == "Suporte" %}
+      <a href="/users">Usuários</a>
+      {% endif %}
+    </nav>
+    <div class="account">
+      <span>{{ user.username }} · {{ user.profile }}</span>
+      <form action="/logout" method="post">
+        <button class="ghost" type="submit">Sair</button>
+      </form>
+    </div>
+  </header>
+  {% endif %}
+
+  <main class="page {% if not user %}auth-page{% endif %}">
+    {% if flash %}
+    <div class="alert {{ flash.level }}">{{ flash.message }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

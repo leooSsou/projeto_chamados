@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Novo chamado · Chamados TI{% endblock %}
+{% block content %}
+<section class="section-head">
+  <div>
+    <h1>Novo chamado</h1>
+    <p>{{ user.hotel }}</p>
+  </div>
+</section>
+
+<form class="panel" action="/tickets/new" method="post">
+  <label>
+    Descrição do problema
+    <textarea name="description" rows="8" required></textarea>
+  </label>
+  {% if error %}
+  <div class="field-error">{{ error }}</div>
+  {% endif %}
+  <div class="actions">
+    <a class="secondary-button" href="/tickets">Cancelar</a>
+    <button type="submit">Abrir chamado</button>
+  </div>
+</form>
+{% endblock %}

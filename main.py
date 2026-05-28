@@ -1,12 +1,5 @@
-# main.py
+import uvicorn
 
-import database
-import ui
-from tkinter import messagebox
 
 if __name__ == "__main__":
-    if database.conectar_google_sheets():
-        ui.abrir_janela_login()
-    else:
-        # A mensagem de erro já é exibida pela função de conexão.
-        print("Falha na conexão com a base de dados. Encerrando o programa.")
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.code }} · Chamados TI{% endblock %}
+{% block content %}
+<section class="section-head">
+  <div>
+    <h1>{{ ticket.code }}</h1>
+    <p>{{ ticket.hotel }} · {{ ticket.requester.username }} · {{ ticket.created_at.strftime("%d/%m/%Y %H:%M") }}</p>
+  </div>
+  <a class="secondary-button" href="/tickets">Voltar</a>
+</section>
+
+<section class="detail-grid">
+  <article class="panel">
+    <div class="split">
+      <h2>Descrição</h2>
+      <span class="status">{{ ticket.status }}</span>
+    </div>
+    <p class="description">{{ ticket.description }}</p>
+  </article>
+
+  {% if user.profile == "Suporte" %}
+  <form class="panel" action="/tickets/{{ ticket.id }}/status" method="post">
+    <h2>Status</h2>
+    <label>
+      Alterar status
+      <select name="status">
+        {% for item in statuses %}
+        <option value="{{ item }}" {% if ticket.status == item %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">Salvar status</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Comentários</h2>
+  <div class="comments">
+    {% for comment in ticket.comments %}
+    <article class="comment">
+      <div>{{ comment.author.username }} · {{ comment.created_at.strftime("%d/%m/%Y %H:%M") }}</div>
+      <p>{{ comment.message }}</p>
+    </article>
+    {% else %}
+    <p class="empty">Nenhum comentário ainda.</p>
+    {% endfor %}
+  </div>
+  <form class="comment-form" action="/tickets/{{ ticket.id }}/comments" method="post">
+    <input name="message" placeholder="Escreva um comentário" required>
+    <button type="submit">Enviar</button>
+  </form>
+</section>
+{% endblock %}
