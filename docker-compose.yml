@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: chamados_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - SECRET_KEY=949f57ebbf795be246416629bc113b27b3b64cd93c9d646a2a0a2df37b42ff2e
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=480
+      
+      # Banco de dados SQLite local mapeado no container
+      - DATABASE_URL=sqlite:///./chamados.db
+      
+      # Configurações SMTP para envio de e-mails
+      - SMTP_HOST=smtp.resend.com
+      - SMTP_PORT=587
+      - SMTP_USER=resend
+      - SMTP_PASSWORD=dummy_key
+      - SMTP_FROM=chamados@hotel.com.br
+      
+      - ENVIRONMENT=development

@@ -1,10 +1,48 @@
-.venv/
+# Python Cache e Compilações
 __pycache__/
-*.pyc
-chamados.db
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Ambientes Virtuais
+venv/
+env/
+.venv/
+ENV/
+
+# Bancos de Dados Locais
+*.db
 *.sqlite
 *.sqlite3
+postgres-data/
+
+# Arquivos de Configuração Local e Segredos
 .env
-credentials.json
-build/
+.env.local
+.env.*.local
+
+# Node.js e React Frontend
+node_modules/
 dist/
+build/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.parcel-cache/
+
+# Editores de Código e IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db

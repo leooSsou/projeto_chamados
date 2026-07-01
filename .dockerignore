@@ -1,0 +1,32 @@
+# Ignora caches do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Ignora ambientes virtuais locais
+.venv/
+venv/
+env/
+ENV/
+
+# Ignora pastas de controle de versão
+.git/
+.github/
+
+# Ignora arquivos de banco de dados locais (para não sobrescrever o DB do container)
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+
+# Ignora arquivos de dependência do node/frontend no build do backend
+node_modules/
+frontend/
+.devcontainer/
+trello_tasks.csv
+trello_tasks_detalhado.csv
