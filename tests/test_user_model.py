@@ -1,8 +1,8 @@
 from datetime import datetime
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from app.models.usuario import User
+from sqlalchemy.exc import IntegrityError, StatementError
+from app.models.usuario import User, UserProfile
 
 def test_criar_usuario_no_banco(db_session) -> None:
     """
@@ -15,7 +15,7 @@ def test_criar_usuario_no_banco(db_session) -> None:
         username="leonardossilva2003@gmail.com",
         password_hash="senha_criptografada_bcrypt",
         department="Recepção",
-        profile="Cliente"
+        profile=UserProfile.CLIENTE
     )
     
     # 2. Execução (Salvar no banco)
@@ -32,7 +32,7 @@ def test_criar_usuario_no_banco(db_session) -> None:
     assert usuario_db.username == "leonardossilva2003@gmail.com"
     assert usuario_db.password_hash == "senha_criptografada_bcrypt"
     assert usuario_db.department == "Recepção"
-    assert usuario_db.profile == "Cliente"
+    assert usuario_db.profile == UserProfile.CLIENTE
     
     # Regra Crítica: Senhas criadas pelo supervisor exigem alteração no primeiro login
     assert usuario_db.must_change_password is True
@@ -48,7 +48,7 @@ def test_evitar_username_duplicado(db_session) -> None:
         username="duplicado@hotel.com.br",
         password_hash="hash1",
         department="Recepção",
-        profile="Cliente"
+        profile=UserProfile.CLIENTE
     )
     db_session.add(user1)
     db_session.commit()
@@ -59,7 +59,7 @@ def test_evitar_username_duplicado(db_session) -> None:
         username="duplicado@hotel.com.br",  # Mesmo username!
         password_hash="hash2",
         department="Governança",
-        profile="Cliente"
+        profile=UserProfile.CLIENTE
     )
     db_session.add(user2)
     
@@ -74,10 +74,22 @@ def test_campos_obrigatorios_nao_nulos(db_session) -> None:
         username="invalido@hotel.com.br",
         password_hash="hash",
         department="TI",
-        profile="Técnico"
+        profile=UserProfile.TECNICO
     )
     db_session.add(usuario_invalido)
     
     # Asserção: Deve falhar ao salvar no banco
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+def test_perfil_invalido_deve_falhar(db_session) -> None:
+    """Garante que o banco de dados rejeita perfis que não estão no Enum UserProfile."""
+    # Instanciamos o perfil usando uma string inválida
+    with pytest.raises(ValueError):
+        User(
+            name="Invalido",
+            username="invalido@hotel.com.br",
+            password_hash="hash",
+            department="TI",
+            profile="Administrador"  # type: ignore
+        )
