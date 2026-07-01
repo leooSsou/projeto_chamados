@@ -9,6 +9,7 @@ WORKDIR /app
 # Instala dependências do sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Instala as dependências Python
