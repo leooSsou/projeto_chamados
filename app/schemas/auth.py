@@ -16,3 +16,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserLoginResponse
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(..., min_length=4, max_length=50)
+    new_password: str = Field(..., min_length=4, max_length=50)

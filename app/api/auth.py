@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.core.database import get_db
 from app.models.usuario import User
-from app.core.security import verify_password, create_access_token
-from app.schemas.auth import UserLogin, Token
+from app.core.security import verify_password, create_access_token, get_password_hash
+from app.schemas.auth import UserLogin, Token, PasswordChange
+from app.api.dependencies import get_current_user
 
 router = APIRouter(tags=["Autenticação"])
 
@@ -39,3 +40,29 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": user
     }
+
+@router.post("/alterar-senha")
+def alterar_senha(
+    change_data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Altera a senha do usuário logado.
+    Valida a senha atual e desmarca a flag de necessidade de alteração de senha no primeiro login.
+    """
+    # 1. Verifica se a senha atual digitada está correta
+    if not verify_password(change_data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Senha atual incorreta"
+        )
+    
+    # 2. Gera o novo hash da senha e limpa a flag must_change_password
+    current_user.password_hash = get_password_hash(change_data.new_password)
+    current_user.must_change_password = False
+    
+    # Salva no banco de dados
+    db.commit()
+    
+    return {"message": "Senha alterada com sucesso"}
