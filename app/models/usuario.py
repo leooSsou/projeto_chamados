@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 from sqlalchemy import String, Boolean, DateTime, func, Enum
-from sqlalchemy.orm import Mapped, mapped_column, validates
+from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
 from app.core.database import Base
 
 class UserProfile(str, enum.Enum):
@@ -24,6 +24,14 @@ class User(Base):
     
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    # Relacionamentos reversos para carregar chamados criados e designados
+    chamados_criados: Mapped[list["Ticket"]] = relationship(
+        "Ticket", back_populates="solicitante", foreign_keys="[Ticket.created_by_id]"
+    )
+    chamados_designados: Mapped[list["Ticket"]] = relationship(
+        "Ticket", back_populates="tecnico_designado", foreign_keys="[Ticket.assigned_technician_id]"
+    )
 
     @validates("profile")
     def validate_profile(self, key: str, value: any) -> UserProfile:
