@@ -27,10 +27,23 @@ class TicketResponse(BaseModel):
     subcategory: str
     description: str
     image_url: Optional[str]
+    assigned_technician_id: Optional[int]
+    reopen_count: int
     sla_duration_hours: float
+    sla_paused_seconds: int
+    sla_frozen_start: Optional[datetime]
     sla_deadline: Optional[datetime]
+    resolution_summary: Optional[str]
     created_at: datetime
     started_at: Optional[datetime]
     paused_at: Optional[datetime]
     resolved_at: Optional[datetime]
     closed_at: Optional[datetime]
+
+class TicketConclude(BaseModel):
+    resolution_summary: str = Field(..., min_length=10, max_length=1000)
+    image_url: Optional[str] = Field(default=None, max_length=255)
+
+class TicketTransfer(BaseModel):
+    target_queue: str = Field(..., min_length=2, max_length=50)
+    justification: str = Field(..., min_length=10, max_length=1000)
