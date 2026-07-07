@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.api.dependencies import get_current_user, RoleChecker
@@ -20,70 +21,74 @@ def criar_chamado(
     """
     Abre um novo chamado de TI no sistema.
     Calcula automaticamente a prioridade, SLA de atendimento e fila de destino.
-    Gera o código sequencial único da OS no formato OS-YYYY-MM-XXXX.
+    Gera o código sequencial único da OS no formato OS-YYYY-MM-XXXX com tratamento de concorrência.
     """
     now = datetime.now()
     
-    # 1. Calcula SLA e Prioridade baseada nas regras de negócios de TI
-    priority, sla_duration_hours = calculate_sla_and_priority(
-        location_type=ticket_data.location_type,
-        is_room_occupied=ticket_data.is_room_occupied,
-        subcategory=ticket_data.subcategory
-    )
-    
-    destination_queue = "TI"
-    
-    # 2. Gera código sequencial da OS no padrão OS-YYYY-MM-XXXX
-    prefix = f"OS-{now.year}-{now.month:02d}-"
-    
-    # Busca a última OS gerada para o mês/ano corrente
-    stmt = (
-        select(Ticket)
-        .where(Ticket.code.like(f"{prefix}%"))
-        .order_by(Ticket.code.desc())
-        .limit(1)
-    )
-    result = db.execute(stmt)
-    last_ticket = result.scalar_one_or_none()
-    
-    if last_ticket:
-        try:
-            last_suffix = int(last_ticket.code.split("-")[-1])
-            next_suffix = last_suffix + 1
-        except ValueError:
-            next_suffix = 1
-    else:
-        next_suffix = 1
+    # Executa em loop de retentativas para contornar colisões de chaves sob alta concorrência
+    for tentativa in range(5):
+        priority, sla_duration_hours = calculate_sla_and_priority(
+            location_type=ticket_data.location_type,
+            is_room_occupied=ticket_data.is_room_occupied,
+            subcategory=ticket_data.subcategory
+        )
         
-    code = f"{prefix}{next_suffix:04d}"
-    
-    # 3. Calcula o prazo de entrega final (SLA Deadline)
-    sla_deadline = now + timedelta(hours=sla_duration_hours)
-    
-    # 4. Persiste o chamado no banco de dados
-    novo_chamado = Ticket(
-        code=code,
-        created_by_id=current_user.id,
-        status=TicketStatus.ABERTO,
-        location_type=ticket_data.location_type,
-        location_details=ticket_data.location_details,
-        is_room_occupied=ticket_data.is_room_occupied,
-        category="Tecnologia",
-        subcategory=ticket_data.subcategory,
-        description=ticket_data.description,
-        image_url=ticket_data.image_url,
-        priority=priority,
-        destination_queue=destination_queue,
-        sla_duration_hours=sla_duration_hours,
-        sla_deadline=sla_deadline,
-        created_at=now
-    )
-    
-    db.add(novo_chamado)
-    db.commit()
-    db.refresh(novo_chamado)
-    
-    return novo_chamado
+        destination_queue = "TI"
+        prefix = f"OS-{now.year}-{now.month:02d}-"
+        
+        # Busca a última OS gerada para o mês/ano corrente
+        stmt = (
+            select(Ticket)
+            .where(Ticket.code.like(f"{prefix}%"))
+            .order_by(Ticket.code.desc())
+            .limit(1)
+        )
+        result = db.execute(stmt)
+        last_ticket = result.scalar_one_or_none()
+        
+        if last_ticket:
+            try:
+                last_suffix = int(last_ticket.code.split("-")[-1])
+                next_suffix = last_suffix + 1 + tentativa
+            except ValueError:
+                next_suffix = 1 + tentativa
+        else:
+            next_suffix = 1 + tentativa
+            
+        code = f"{prefix}{next_suffix:04d}"
+        sla_deadline = now + timedelta(hours=sla_duration_hours)
+        
+        novo_chamado = Ticket(
+            code=code,
+            created_by_id=current_user.id,
+            status=TicketStatus.ABERTO,
+            location_type=ticket_data.location_type,
+            location_details=ticket_data.location_details,
+            is_room_occupied=ticket_data.is_room_occupied,
+            category="Tecnologia",
+            subcategory=ticket_data.subcategory,
+            description=ticket_data.description,
+            image_url=ticket_data.image_url,
+            priority=priority,
+            destination_queue=destination_queue,
+            sla_duration_hours=sla_duration_hours,
+            sla_deadline=sla_deadline,
+            created_at=now
+        )
+        
+        try:
+            db.add(novo_chamado)
+            db.commit()
+            db.refresh(novo_chamado)
+            return novo_chamado
+        except IntegrityError:
+            db.rollback()
+            # Se atingir o limite máximo de tentativas
+            if tentativa == 4:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Falha ao gerar código de OS sob alta concorrência"
+                )
 
 
 @router.post("/chamados/{id}/iniciar", response_model=TicketResponse)
@@ -118,10 +123,17 @@ def pausar_chamado(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker([UserProfile.TECNICO, UserProfile.SUPERVISOR]))
 ):
-    """Pausa o atendimento (status AguardandoPeca) e congela o SLA."""
+    """Pausa o atendimento (status AguardandoPeca) e congela o SLA. Apenas o técnico designado ou supervisor podem fazer."""
     ticket = db.get(Ticket, id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
+        
+    # Valida posse do chamado para evitar controle de outros técnicos
+    if current_user.profile != UserProfile.SUPERVISOR and ticket.assigned_technician_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas o técnico designado ou supervisor podem gerenciar este chamado"
+        )
         
     if ticket.status != TicketStatus.EM_ATENDIMENTO:
         raise HTTPException(
@@ -144,10 +156,17 @@ def retomar_chamado(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker([UserProfile.TECNICO, UserProfile.SUPERVISOR]))
 ):
-    """Retoma o atendimento (EmAtendimento), descongelando e estendendo o SLA."""
+    """Retoma o atendimento (EmAtendimento). Apenas o técnico designado ou supervisor podem fazer."""
     ticket = db.get(Ticket, id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
+        
+    # Valida posse do chamado
+    if current_user.profile != UserProfile.SUPERVISOR and ticket.assigned_technician_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas o técnico designado ou supervisor podem gerenciar este chamado"
+        )
         
     if ticket.status != TicketStatus.AGUARDANDO_PECA:
         raise HTTPException(
@@ -177,10 +196,17 @@ def concluir_chamado(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker([UserProfile.TECNICO, UserProfile.SUPERVISOR]))
 ):
-    """Conclui o atendimento (Resolvido), registrando o sumário técnico."""
+    """Conclui o chamado (Resolvido). Apenas o técnico designado ou supervisor podem fazer."""
     ticket = db.get(Ticket, id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
+        
+    # Valida posse do chamado
+    if current_user.profile != UserProfile.SUPERVISOR and ticket.assigned_technician_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas o técnico designado ou supervisor podem gerenciar este chamado"
+        )
         
     if ticket.status != TicketStatus.EM_ATENDIMENTO:
         raise HTTPException(
@@ -236,7 +262,7 @@ def reabrir_chamado(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Reabre o chamado (Reaberto) para retrabalho. Desvincula o técnico."""
+    """Reabre o chamado (Reaberto) limpando os timestamps de atendimento anteriores para novo ciclo."""
     ticket = db.get(Ticket, id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
@@ -257,6 +283,13 @@ def reabrir_chamado(
     ticket.reopen_count += 1
     ticket.assigned_technician_id = None
     
+    # Reseta os timestamps de atendimento para que o novo ciclo se inicie limpo
+    ticket.started_at = None
+    ticket.paused_at = None
+    ticket.resolved_at = None
+    ticket.sla_paused_seconds = 0
+    ticket.sla_frozen_start = None
+    
     db.commit()
     db.refresh(ticket)
     return ticket
@@ -269,7 +302,7 @@ def transferir_chamado(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker([UserProfile.SUPERVISOR]))
 ):
-    """Transfere a fila de destino do chamado, desvinculando o técnico e resetando SLA."""
+    """Transfere a fila de destino do chamado, desvinculando o técnico e resetando/zerando pausas de SLA."""
     ticket = db.get(Ticket, id)
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
@@ -285,6 +318,11 @@ def transferir_chamado(
     ticket.destination_queue = transfer_data.target_queue
     ticket.assigned_technician_id = None
     ticket.started_at = None
+    
+    # Zera as pausas anteriores no transbordo
+    ticket.sla_paused_seconds = 0
+    ticket.sla_frozen_start = None
+    
     # Reseta o SLA a partir da transferência
     ticket.sla_deadline = datetime.now() + timedelta(hours=ticket.sla_duration_hours)
     

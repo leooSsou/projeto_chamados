@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 from app.models.chamado import LocationType, TicketStatus
 
 class TicketCreate(BaseModel):
@@ -8,7 +8,8 @@ class TicketCreate(BaseModel):
     location_details: str = Field(..., min_length=1, max_length=150)
     is_room_occupied: bool = Field(default=False)
     category: str = Field(default="Tecnologia", min_length=2, max_length=100)
-    subcategory: str = Field(..., min_length=2, max_length=100)
+    # Restringe às subcategorias de TI válidas no Pydantic
+    subcategory: Literal["Wi-Fi", "Fechadura Eletrônica", "TV / VoIP", "Catraca", "Computador", "Outros"]
     description: str = Field(..., min_length=3)
     image_url: Optional[str] = Field(default=None, max_length=255)
 
@@ -45,5 +46,6 @@ class TicketConclude(BaseModel):
     image_url: Optional[str] = Field(default=None, max_length=255)
 
 class TicketTransfer(BaseModel):
-    target_queue: str = Field(..., min_length=2, max_length=50)
+    # Restringe às filas válidas para evitar HTTP 500
+    target_queue: Literal["TI", "Manutenção"]
     justification: str = Field(..., min_length=10, max_length=1000)
