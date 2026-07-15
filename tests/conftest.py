@@ -1,3 +1,4 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
@@ -6,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.main import app
 
-# Banco de dados SQLite em memória para isolar os testes
+# Banco de dados SQLite em memória com StaticPool para isolar os testes
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -33,6 +34,7 @@ def db_session():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture(scope="function")
 def client(db_session):

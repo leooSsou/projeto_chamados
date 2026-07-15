@@ -11,7 +11,21 @@ engine = create_engine(
     settings.DATABASE_URL, connect_args=connect_args
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+_SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def SessionLocal():
+    """
+    Retorna uma instância de Sessão do Banco de Dados.
+    Se estiver rodando em ambiente de testes (pytest), retorna dinamicamente a sessão de testes em memória.
+    """
+    import sys
+    if "pytest" in sys.modules:
+        for mod_name in ("tests.conftest", "conftest"):
+            if mod_name in sys.modules:
+                TestingSessionLocal = getattr(sys.modules[mod_name], "TestingSessionLocal", None)
+                if TestingSessionLocal:
+                    return TestingSessionLocal()
+    return _SessionLocal()
 
 class Base(DeclarativeBase):
     pass
