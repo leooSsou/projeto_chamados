@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Sidebar from './components/Sidebar';
+import Navbar from './components/Navbar';
 import Login from './pages/Login';
 
 // Componente para proteger rotas autenticadas
@@ -25,12 +25,12 @@ const SupervisorRoute = ({ children }) => {
   return user?.profile === 'Supervisor' ? children : <Navigate to="/chamados" replace />;
 };
 
-// Layout com barra lateral compartilhada
+// Layout com barra de navegação superior compartilhada
 const Layout = ({ children }) => {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-100">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto p-8">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col">
+      <Navbar />
+      <main className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
     </div>
