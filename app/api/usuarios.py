@@ -41,3 +41,17 @@ def criar_usuario(user_data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(novo_usuario)
     
     return novo_usuario
+
+
+@router.get("/usuarios", response_model=list[UserResponse])
+def listar_usuarios(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker([UserProfile.SUPERVISOR]))
+):
+    """
+    Lista todos os colaboradores cadastrados.
+    Disponível exclusivamente para o Supervisor.
+    """
+    stmt = select(User).order_by(User.name.asc())
+    result = db.execute(stmt)
+    return result.scalars().all()
