@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -9,12 +10,19 @@ from app.models.usuario import User, UserProfile
 from app.models.chamado import Ticket, TicketStatus, TransferLog
 from app.schemas.chamado import TicketCreate, TicketResponse, TicketConclude, TicketTransfer
 from app.services.sla_service import calculate_sla_and_priority
+from app.services.pdf_service import generate_ticket_pdf
+from app.services.email_service import (
+    send_email_in_background,
+    notify_ticket_created,
+    notify_ticket_resolved
+)
 
 router = APIRouter(tags=["Chamados"])
 
 @router.post("/chamados", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 def criar_chamado(
     ticket_data: TicketCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -80,6 +88,7 @@ def criar_chamado(
             db.add(novo_chamado)
             db.commit()
             db.refresh(novo_chamado)
+            background_tasks.add_task(send_email_in_background, *notify_ticket_created(novo_chamado))
             return novo_chamado
         except IntegrityError:
             db.rollback()
@@ -193,6 +202,7 @@ def retomar_chamado(
 def concluir_chamado(
     id: int,
     conclude_data: TicketConclude,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker([UserProfile.TECNICO, UserProfile.SUPERVISOR]))
 ):
@@ -222,6 +232,10 @@ def concluir_chamado(
         
     db.commit()
     db.refresh(ticket)
+    background_tasks.add_task(
+        send_email_in_background,
+        *notify_ticket_resolved(ticket, ticket.solicitante.username)
+    )
     return ticket
 
 
@@ -330,3 +344,23 @@ def transferir_chamado(
     db.commit()
     db.refresh(ticket)
     return ticket
+
+
+@router.get("/chamados/{id}/os/download")
+def download_os_pdf(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Gera e faz o download da Ordem de Serviço (OS) formatada em PDF."""
+    ticket = db.get(Ticket, id)
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
+        
+    pdf_buffer = generate_ticket_pdf(ticket)
+    filename = f"OS_{ticket.code}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
