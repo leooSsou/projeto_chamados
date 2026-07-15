@@ -37,6 +37,10 @@ class Ticket(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     resolution_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    # Novas Colunas
+    priority: Mapped[str] = mapped_column(String(20), default="Média", nullable=False)
+    destination_queue: Mapped[str] = mapped_column(String(50), default="TI", nullable=False)
+    
     # SLA metrics
     sla_duration_hours: Mapped[float] = mapped_column(Float, default=24.0, nullable=False)
     sla_deadline: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -87,6 +91,18 @@ class Ticket(Base):
                 except KeyError:
                     pass
         raise ValueError(f"Tipo de local inválido: {value}")
+
+    @validates("priority")
+    def validate_priority(self, key: str, value: str) -> str:
+        if value not in ("Alta", "Média", "Baixa"):
+            raise ValueError(f"Prioridade inválida: {value}")
+        return value
+
+    @validates("destination_queue")
+    def validate_destination_queue(self, key: str, value: str) -> str:
+        if value not in ("TI", "Manutenção"):
+            raise ValueError(f"Fila de destino inválida: {value}")
+        return value
 
     @validates("sla_paused_seconds")
     def validate_sla_paused_seconds(self, key: str, value: int) -> int:
