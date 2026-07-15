@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -98,6 +100,39 @@ def criar_chamado(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Falha ao gerar código de OS sob alta concorrência"
                 )
+
+
+@router.get("/chamados", response_model=list[TicketResponse])
+def listar_chamados(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Lista os chamados do sistema aplicando regras de visibilidade (RBAC):
+    - Supervisor/Gerente: enxerga todos os chamados.
+    - Técnico: enxerga chamados na fila de TI ou atribuídos a ele.
+    - Cliente: enxerga apenas chamados abertos por ele próprio.
+    """
+    if current_user.profile in (UserProfile.SUPERVISOR, UserProfile.GERENTE):
+        stmt = select(Ticket).order_by(Ticket.created_at.desc())
+    elif current_user.profile == UserProfile.TECNICO:
+        stmt = (
+            select(Ticket)
+            .where(
+                (Ticket.destination_queue == "TI") |
+                (Ticket.assigned_technician_id == current_user.id)
+            )
+            .order_by(Ticket.created_at.desc())
+        )
+    else:
+        stmt = (
+            select(Ticket)
+            .where(Ticket.created_by_id == current_user.id)
+            .order_by(Ticket.created_at.desc())
+        )
+        
+    result = db.execute(stmt)
+    return result.scalars().all()
 
 
 @router.post("/chamados/{id}/iniciar", response_model=TicketResponse)
@@ -364,3 +399,39 @@ def download_os_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+@router.post("/chamados/upload")
+def upload_foto(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Realiza o upload de imagem de evidência de chamado.
+    Salva no diretório de uploads e retorna o caminho estático público.
+    """
+    uploads_dir = "/app/static/uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    
+    # Valida formato de imagem básico
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de arquivo inválido. Apenas imagens são permitidas."
+        )
+    
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(uploads_dir, unique_filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            content = file.file.read()
+            buffer.write(content)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao salvar arquivo no servidor: {str(e)}"
+        )
+        
+    return {"image_url": f"/static/uploads/{unique_filename}"}

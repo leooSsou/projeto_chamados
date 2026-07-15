@@ -189,3 +189,86 @@ def test_db_backup_script() -> None:
     files = os.listdir(BACKUPS_DIR)
     backup_files = [f for f in files if f.startswith("backup_") and f.endswith(".db")]
     assert len(backup_files) > 0
+
+
+def test_upload_foto_evidencia(client, supervisor_headers) -> None:
+    """Valida se o endpoint de upload de fotos salva no disco e retorna o caminho correto."""
+    headers, _ = supervisor_headers
+    
+    # Mock de envio de arquivo
+    file_content = b"conteudo_de_imagem_fake"
+    files = {"file": ("test_image.png", file_content, "image/png")}
+    
+    res = client.post("/chamados/upload", files=files, headers=headers)
+    assert res.status_code == status.HTTP_200_OK
+    assert "image_url" in res.json()
+    
+    image_url = res.json()["image_url"]
+    assert image_url.startswith("/static/uploads/")
+    
+    # Valida se o arquivo foi criado fisicamente
+    filename = os.path.basename(image_url)
+    filepath = os.path.join("/app/static/uploads", filename)
+    assert os.path.exists(filepath)
+    
+    # Cleanup do arquivo temporário
+    if os.path.exists(filepath):
+        os.remove(filepath)
+
+
+def test_listar_chamados_rbac(client, supervisor_headers, tech_headers, db_session) -> None:
+    """Valida se a listagem de chamados respeita os filtros de RBAC por perfil."""
+    super_headers, super_user = supervisor_headers
+    t_headers, tech_user = tech_headers
+    
+    # Cria chamado associado ao super_user
+    t1 = Ticket(
+        code="OS-2026-07-9999",
+        created_by_id=super_user.id,
+        status=TicketStatus.ABERTO,
+        location_type="Quarto",
+        location_details="101",
+        is_room_occupied=False,
+        category="Tecnologia",
+        subcategory="Wi-Fi",
+        description="Wi-Fi fora do ar",
+        priority="Média",
+        destination_queue="TI"
+    )
+    db_session.add(t1)
+    db_session.commit()
+    
+    # 1. Supervisor deve enxergar o chamado
+    res_super = client.get("/chamados", headers=super_headers)
+    assert res_super.status_code == status.HTTP_200_OK
+    assert len(res_super.json()) >= 1
+    
+    # 2. Técnico deve enxergar porque a fila é TI
+    res_tech = client.get("/chamados", headers=t_headers)
+    assert res_tech.status_code == status.HTTP_200_OK
+    assert len(res_tech.json()) >= 1
+    
+    # 3. Usuário Cliente comum (não criador) não deve ver nada
+    # Cria um cliente temporário para testar
+    from app.models.usuario import User, UserProfile
+    from app.core.security import get_password_hash
+    cliente = User(
+        name="Hóspede Comum",
+        username="hospede@hotel.com.br",
+        password_hash=get_password_hash("Hospede123"),
+        department="Recepção",
+        profile=UserProfile.CLIENTE,
+        must_change_password=False
+    )
+    db_session.add(cliente)
+    db_session.commit()
+    
+    payload = {"username": "hospede@hotel.com.br", "password": "Hospede123"}
+    login_res = client.post("/auth/login", json=payload)
+    c_headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+    
+    res_cliente = client.get("/chamados", headers=c_headers)
+    assert res_cliente.status_code == status.HTTP_200_OK
+    # Não deve retornar o chamado OS-2026-07-9999 porque foi criado pelo super_user
+    assert len(res_cliente.json()) == 0
+

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models.usuario import User, UserProfile
+from app.models.chamado import Ticket
 from app.core.security import get_password_hash
 
 def seed_database(db: Session) -> None:
