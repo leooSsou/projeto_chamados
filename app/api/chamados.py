@@ -90,7 +90,10 @@ def criar_chamado(
             db.add(novo_chamado)
             db.commit()
             db.refresh(novo_chamado)
-            background_tasks.add_task(send_email_in_background, *notify_ticket_created(novo_chamado))
+            
+            t_id, recipient, subject, body = notify_ticket_created(novo_chamado)
+            background_tasks.add_task(send_email_in_background, t_id, current_user.id, recipient, subject, body)
+            
             return novo_chamado
         except IntegrityError:
             db.rollback()
@@ -267,9 +270,15 @@ def concluir_chamado(
         
     db.commit()
     db.refresh(ticket)
+    
+    t_id, recipient, subject, body = notify_ticket_resolved(ticket, ticket.solicitante.username)
     background_tasks.add_task(
         send_email_in_background,
-        *notify_ticket_resolved(ticket, ticket.solicitante.username)
+        t_id,
+        current_user.id,
+        recipient,
+        subject,
+        body
     )
     return ticket
 

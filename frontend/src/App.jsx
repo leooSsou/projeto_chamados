@@ -5,6 +5,7 @@ import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Chamados from './pages/Chamados';
 import Usuarios from './pages/Usuarios';
+import Configuracoes from './pages/Configuracoes';
 
 // Componente para proteger rotas autenticadas
 const PrivateRoute = ({ children }) => {
@@ -72,6 +73,18 @@ function AppRoutes() {
                 <Usuarios />
               </Layout>
             </SupervisorRoute>
+          </PrivateRoute>
+        } 
+      />
+
+      {/* Rota Protegida de Configurações do Sistema (Acessível a qualquer usuário logado) */}
+      <Route 
+        path="/configuracoes" 
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Configuracoes />
+            </Layout>
           </PrivateRoute>
         } 
       />

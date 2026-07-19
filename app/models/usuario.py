@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, func, Enum
+from sqlalchemy import String, Boolean, DateTime, func, Enum, Integer
 from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
 from app.core.database import Base
 
@@ -24,6 +24,14 @@ class User(Base):
     
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    # Parâmetros SMTP de Notificações Individuais
+    smtp_host: Mapped[str] = mapped_column(String(255), nullable=True)
+    smtp_port: Mapped[int] = mapped_column(Integer, nullable=True)
+    smtp_user: Mapped[str] = mapped_column(String(255), nullable=True)
+    smtp_password: Mapped[str] = mapped_column(String(255), nullable=True)
+    smtp_from: Mapped[str] = mapped_column(String(255), nullable=True)
+    ti_destination_email: Mapped[str] = mapped_column(String(255), default="ti@hotel.com.br", nullable=True)
 
     # Relacionamentos reversos para carregar chamados criados e designados
     chamados_criados: Mapped[list["Ticket"]] = relationship(

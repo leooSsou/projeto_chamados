@@ -2,53 +2,82 @@ import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.chamado import Ticket, NotificationLog
+from app.models.usuario import User
 
 logger = logging.getLogger("email_service")
 
-def send_email_in_background(ticket_id: int, recipient_email: str, subject: str, body_html: str):
+def send_email_in_background(ticket_id: int, sender_user_id: int, recipient_email: str, subject: str, body_html: str):
     """
     Função assíncrona executada em background para envio real de e-mails via SMTP
     e gravação do log de envio na tabela 'logs_notificacao'.
+    Lê configurações SMTP dinâmicas do banco ou adota fallbacks de variáveis de ambiente.
     """
     db = SessionLocal()
-    status = "failed"
     try:
-        # Se host estiver configurado e não for o valor dummy de dev
-        if settings.SMTP_HOST and settings.SMTP_PASSWORD != "dummy_key":
-            try:
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = settings.SMTP_FROM
-                msg["To"] = recipient_email
-                msg.attach(MIMEText(body_html, "html"))
-                
-                # Conexão SMTP com STARTTLS
-                server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
-                server.starttls()
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-                server.sendmail(settings.SMTP_FROM, recipient_email, msg.as_string())
-                server.quit()
-                
-                status = "success"
-                logger.info(f"E-mail enviado com sucesso para: {recipient_email}")
-            except Exception as smtp_err:
-                logger.error(f"Falha de SMTP ao enviar e-mail para {recipient_email}: {str(smtp_err)}")
+        # Busca o usuário remetente no banco para ler suas credenciais SMTP
+        sender_user = db.get(User, sender_user_id) if sender_user_id else None
+
+        smtp_host = sender_user.smtp_host if (sender_user and sender_user.smtp_host) else settings.SMTP_HOST
+        smtp_port = sender_user.smtp_port if (sender_user and sender_user.smtp_port) else settings.SMTP_PORT
+        smtp_user = sender_user.smtp_user if (sender_user and sender_user.smtp_user) else settings.SMTP_USER
+        smtp_password = sender_user.smtp_password if (sender_user and sender_user.smtp_password) else settings.SMTP_PASSWORD
+        smtp_from = sender_user.smtp_from if (sender_user and sender_user.smtp_from) else (sender_user.smtp_user if (sender_user and sender_user.smtp_user) else settings.SMTP_FROM)
+
+        # Se o destinatário for o e-mail padrão da TI, envia para todos os técnicos e supervisores do sistema
+        recipients = []
+        if recipient_email == "ti@hotel.com.br":
+            from app.models.usuario import UserProfile
+            stmt = select(User).where(User.profile.in_([UserProfile.TECNICO, UserProfile.SUPERVISOR]))
+            staff_users = db.execute(stmt).scalars().all()
+            recipients = [u.username for u in staff_users if u.username]
+            if not recipients:
+                recipients = ["ti@hotel.com.br"]
         else:
-            # Mock para testes locais e desenvolvimento sem travar a aplicação
-            logger.info(f"[MOCK SMTP] Simulando envio de e-mail para {recipient_email} - Assunto: {subject}")
-            status = "success"
-            
-        # Grava log na tabela logs_notificacao
-        log = NotificationLog(
-            ticket_id=ticket_id,
-            recipient_email=recipient_email,
-            subject=subject,
-            status=status
-        )
-        db.add(log)
+            recipients = [recipient_email]
+
+        for target in recipients:
+            status = "failed"
+            # Se host estiver configurado e não for o valor dummy de dev
+            if smtp_host and smtp_password != "dummy_key":
+                try:
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = subject
+                    msg["From"] = smtp_from
+                    msg["To"] = target
+                    msg.attach(MIMEText(body_html, "html"))
+                    
+                    # Conexão SMTP com suporte a SSL (Porta 465) ou STARTTLS (Porta 587/Outras)
+                    if smtp_port == 465:
+                        server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+                    else:
+                        server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+                        server.starttls()
+                    server.login(smtp_user, smtp_password)
+                    server.sendmail(smtp_from, target, msg.as_string())
+                    server.quit()
+                    
+                    status = "success"
+                    logger.info(f"E-mail enviado com sucesso para: {target}")
+                except Exception as smtp_err:
+                    logger.error(f"Falha de SMTP ao enviar e-mail para {target}: {str(smtp_err)}")
+            else:
+                # Mock para testes locais e desenvolvimento sem travar a aplicação
+                logger.info(f"[MOCK SMTP] Simulando envio de e-mail para {target} - Assunto: {subject}")
+                status = "success"
+                
+            # Grava log na tabela logs_notificacao
+            log = NotificationLog(
+                ticket_id=ticket_id,
+                recipient_email=target,
+                subject=subject,
+                status=status
+            )
+            db.add(log)
+        
         db.commit()
     except Exception as db_err:
         logger.error(f"Erro ao salvar log de notificação no banco: {str(db_err)}")

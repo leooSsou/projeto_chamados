@@ -121,6 +121,7 @@ def test_smtp_logs_gravacao_banco(db_session, test_ticket) -> None:
     # Chama diretamente a rotina de envio em background
     send_email_in_background(
         ticket_id=test_ticket.id,
+        sender_user_id=test_ticket.created_by_id,
         recipient_email="cliente@hotel.com.br",
         subject="Teste de Assunto",
         body_html="<p>Olá Mundo</p>"
