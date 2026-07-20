@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
@@ -13,10 +13,43 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  if (!isOpen) return null;
+  // Opções dinâmicas carregadas do banco de dados
+  const [locationTypes, setLocationTypes] = useState(["Quarto", "Área Comum"]);
+  const [commonAreas, setCommonAreas] = useState(["Recepção", "Restaurante", "Corredor", "Estacionamento", "Piscina", "Academia", "Eventos", "Outros"]);
+  const [subcategories, setSubcategories] = useState(["Wi-Fi", "Fechadura Eletrônica", "TV / VoIP", "Catraca", "Computador", "Outros"]);
 
-  const subcategories = ["Wi-Fi", "Fechadura Eletrônica", "TV / VoIP", "Catraca", "Computador", "Outros"];
-  const commonAreas = ["Recepção", "Restaurante", "Corredor", "Estacionamento", "Piscina", "Academia", "Eventos", "Outros"];
+  useEffect(() => {
+    if (isOpen) {
+      fetchDynamicOptions();
+    }
+  }, [isOpen]);
+
+  const fetchDynamicOptions = async () => {
+    try {
+      const data = await api.get('/opcoes');
+      if (data.location_types && data.location_types.length > 0) {
+        setLocationTypes(data.location_types.map(o => o.name));
+      }
+      if (data.common_areas && data.common_areas.length > 0) {
+        const names = data.common_areas.map(o => o.name);
+        setCommonAreas(names);
+        if (!names.includes(commonArea)) {
+          setCommonArea(names[0]);
+        }
+      }
+      if (data.subcategories && data.subcategories.length > 0) {
+        const names = data.subcategories.map(o => o.name);
+        setSubcategories(names);
+        if (!names.includes(subcategory)) {
+          setSubcategory(names[0]);
+        }
+      }
+    } catch (err) {
+      console.warn("Erro ao carregar opções dinâmicas. Utilizando padrões.", err);
+    }
+  };
+
+  if (!isOpen) return null;
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -60,18 +93,15 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
       // 3. Salva o chamado no backend
       await api.post('/chamados', ticketPayload);
 
-      // Limpa formulário
+      // Limpa os campos e fecha
       setRoomNumber('');
-      setCommonArea('Recepção');
-      setIsRoomOccupied(false);
-      setSubcategory('Wi-Fi');
       setDescription('');
       setImageFile(null);
-
+      setIsRoomOccupied(false);
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || 'Erro ao abrir o chamado.');
+      setError(err.message || 'Erro ao registrar chamado. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -81,22 +111,35 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl w-full max-w-lg border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
-        {/* Header */}
+        {/* Header Modal */}
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-bold text-slate-800 text-lg">Abrir Novo Chamado de TI</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg">Abrir Novo Chamado de TI</h2>
+              <p className="text-xs text-slate-400">Registre uma ocorrência operacional no hotel.</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+          >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-center gap-2">
-              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {error}
             </div>
@@ -109,10 +152,11 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
               <select
                 value={locationType}
                 onChange={(e) => setLocationType(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50 font-medium"
               >
-                <option value="Quarto">Quarto</option>
-                <option value="Área Comum">Área Comum</option>
+                {locationTypes.map(lt => (
+                  <option key={lt} value={lt}>{lt}</option>
+                ))}
               </select>
             </div>
 
@@ -134,7 +178,7 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
                 <select
                   value={commonArea}
                   onChange={(e) => setCommonArea(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50 font-medium"
                 >
                   {commonAreas.map(area => (
                     <option key={area} value={area}>{area}</option>
@@ -166,7 +210,7 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
             <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50 font-medium"
             >
               {subcategories.map(sub => (
                 <option key={sub} value={sub}>{sub}</option>
@@ -180,40 +224,39 @@ export default function ChamadoModal({ isOpen, onClose, onSuccess }) {
             <textarea
               required
               rows="3"
-              placeholder="Descreva detalhadamente o problema técnico..."
+              placeholder="Descreva detalhadamente o problema técnico encontrado..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-sky-500/50 resize-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-sky-500/50 resize-none"
             />
           </div>
 
-          {/* Foto de Evidência */}
+          {/* Upload de Imagem */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Foto / Imagem de Evidência (Opcional)</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Foto / Evidência (Opcional)</label>
             <input
               type="file"
               accept="image/*"
               onChange={handleFileChange}
-              className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-600 hover:file:bg-slate-200 file:cursor-pointer cursor-pointer"
+              className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 transition-all cursor-pointer"
             />
           </div>
 
-          {/* Footer Ações */}
+          {/* Footer Actions */}
           <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              disabled={isLoading}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-semibold transition-colors"
+              className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-700 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold shadow-lg shadow-sky-600/10 transition-colors"
+              className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:bg-sky-800 text-white text-xs font-bold rounded-xl shadow-md shadow-sky-600/20 transition-all"
             >
-              {isLoading ? 'Abrindo Chamado...' : 'Confirmar Abertura'}
+              {isLoading ? 'Registrando...' : 'Criar Chamado'}
             </button>
           </div>
 

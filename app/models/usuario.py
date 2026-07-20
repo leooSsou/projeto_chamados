@@ -8,7 +8,6 @@ class UserProfile(str, enum.Enum):
     CLIENTE = "Cliente"
     TECNICO = "Técnico"
     SUPERVISOR = "Supervisor"
-    GERENTE = "Gerente"
 
 class User(Base):
     __tablename__ = "usuarios"

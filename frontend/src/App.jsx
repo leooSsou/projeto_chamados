@@ -5,6 +5,8 @@ import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Chamados from './pages/Chamados';
 import Usuarios from './pages/Usuarios';
+import Configuracoes from './pages/Configuracoes';
+import Gestao from './pages/Gestao';
 
 // Componente para proteger rotas autenticadas
 const PrivateRoute = ({ children }) => {
@@ -23,6 +25,12 @@ const PrivateRoute = ({ children }) => {
 
 // Componente para rotas exclusivas de Supervisor
 const SupervisorRoute = ({ children }) => {
+  const { user } = useAuth();
+  return user?.profile === 'Supervisor' ? children : <Navigate to="/chamados" replace />;
+};
+
+// Componente para rotas exclusivas de Gestores/Supervisores
+const GestorRoute = ({ children }) => {
   const { user } = useAuth();
   return user?.profile === 'Supervisor' ? children : <Navigate to="/chamados" replace />;
 };
@@ -62,6 +70,20 @@ function AppRoutes() {
         } 
       />
 
+      {/* Rota Protegida de Gestão & KPIs (Apenas Gerente e Supervisor) */}
+      <Route 
+        path="/gestao" 
+        element={
+          <PrivateRoute>
+            <GestorRoute>
+              <Layout>
+                <Gestao />
+              </Layout>
+            </GestorRoute>
+          </PrivateRoute>
+        } 
+      />
+
       {/* Rota Protegida de Gerenciamento de Usuários (Apenas Supervisor) */}
       <Route 
         path="/usuarios" 
@@ -72,6 +94,18 @@ function AppRoutes() {
                 <Usuarios />
               </Layout>
             </SupervisorRoute>
+          </PrivateRoute>
+        } 
+      />
+
+      {/* Rota Protegida de Configurações (Todos os Usuários) */}
+      <Route 
+        path="/configuracoes" 
+        element={
+          <PrivateRoute>
+            <Layout>
+              <Configuracoes />
+            </Layout>
           </PrivateRoute>
         } 
       />

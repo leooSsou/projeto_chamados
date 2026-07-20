@@ -11,3 +11,17 @@ html, body, #root {
   background-color: #f8fafc;
   color: #1e293b;
 }
+
+/* Hide scrollbars globally for clean UI */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}

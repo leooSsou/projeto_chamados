@@ -113,7 +113,7 @@ def listar_chamados(
     - Técnico: enxerga chamados na fila de TI ou atribuídos a ele.
     - Cliente: enxerga apenas chamados abertos por ele próprio.
     """
-    if current_user.profile in (UserProfile.SUPERVISOR, UserProfile.GERENTE):
+    if current_user.profile == UserProfile.SUPERVISOR:
         stmt = select(Ticket).order_by(Ticket.created_at.desc())
     elif current_user.profile == UserProfile.TECNICO:
         stmt = (
@@ -285,10 +285,10 @@ def homologar_chamado(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
         
-    if current_user.profile not in (UserProfile.SUPERVISOR, UserProfile.GERENTE) and current_user.id != ticket.created_by_id:
+    if current_user.profile != UserProfile.SUPERVISOR and current_user.id != ticket.created_by_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas o solicitante do chamado ou um supervisor/gerente podem homologar"
+            detail="Apenas o solicitante do chamado ou um supervisor podem homologar"
         )
         
     if ticket.status != TicketStatus.RESOLVIDO:
@@ -316,10 +316,10 @@ def reabrir_chamado(
     if not ticket:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chamado não encontrado")
         
-    if current_user.profile not in (UserProfile.SUPERVISOR, UserProfile.GERENTE) and current_user.id != ticket.created_by_id:
+    if current_user.profile != UserProfile.SUPERVISOR and current_user.id != ticket.created_by_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Apenas o solicitante do chamado ou um supervisor/gerente podem reabrir"
+            detail="Apenas o solicitante do chamado ou um supervisor podem reabrir"
         )
         
     if ticket.status != TicketStatus.RESOLVIDO:

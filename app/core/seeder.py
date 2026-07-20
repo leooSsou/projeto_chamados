@@ -46,19 +46,6 @@ def seed_database(db: Session) -> None:
         )
         db.add(cliente_recepcao)
 
-    # 4. Cadastra Gerente Geral
-    stmt = select(User).where(User.username == "gerente@hotel.com.br")
-    if not db.execute(stmt).scalar_one_or_none():
-        gerente = User(
-            name="Gerente Geral",
-            username="gerente@hotel.com.br",
-            password_hash=get_password_hash("Gerente123"),
-            department="Gerência",
-            profile=UserProfile.GERENTE,
-            must_change_password=True
-        )
-        db.add(gerente)
-
     db.commit()
 
 if __name__ == "__main__":

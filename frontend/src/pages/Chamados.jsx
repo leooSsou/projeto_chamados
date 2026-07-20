@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ChamadoModal from '../components/ChamadoModal';
 import TransbordoModal from '../components/TransbordoModal';
+import DetalhesChamadoModal from '../components/DetalhesChamadoModal';
+import ConcluirChamadoModal from '../components/ConcluirChamadoModal';
 
 export default function Chamados() {
   const { user } = useAuth();
@@ -19,12 +21,26 @@ export default function Chamados() {
   const [isTransbordoOpen, setIsTransbordoOpen] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
 
-  // Ações de Conclusão Técnica
+  // Modal de Detalhes do Chamado (Pop-up)
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedDetailTicket, setSelectedDetailTicket] = useState(null);
+
+  const handleOpenDetailModal = (ticket) => {
+    setSelectedDetailTicket(ticket);
+    setIsDetailOpen(true);
+  };
+
+  // Modal de Conclusão Técnica / Finalização do Chamado
   const [isConcludeOpen, setIsConcludeOpen] = useState(false);
-  const [concludeId, setConcludeId] = useState(null);
-  const [resolutionSummary, setResolutionSummary] = useState('');
-  const [concludeError, setConcludeError] = useState('');
-  const [concludeLoading, setConcludeLoading] = useState(false);
+  const [selectedConcludeTicket, setSelectedConcludeTicket] = useState(null);
+
+  const openConcludeModal = (ticketOrId) => {
+    const targetTicket = typeof ticketOrId === 'object' 
+      ? ticketOrId 
+      : tickets.find(t => t.id === ticketOrId);
+    setSelectedConcludeTicket(targetTicket);
+    setIsConcludeOpen(true);
+  };
 
   // Busca chamados do backend
   const fetchTickets = async () => {
@@ -72,35 +88,7 @@ export default function Chamados() {
     }
   };
 
-  const openConcludeModal = (id) => {
-    setConcludeId(id);
-    setResolutionSummary('');
-    setConcludeError('');
-    setIsConcludeOpen(true);
-  };
 
-  const handleConcluirSubmit = async (e) => {
-    e.preventDefault();
-    setConcludeError('');
-
-    if (resolutionSummary.trim().length < 10) {
-      setConcludeError('O resumo da solução deve ter pelo menos 10 caracteres.');
-      return;
-    }
-
-    setConcludeLoading(true);
-    try {
-      await api.post(`/chamados/${concludeId}/concluir`, {
-        resolution_summary: resolutionSummary.trim()
-      });
-      setIsConcludeOpen(false);
-      fetchTickets();
-    } catch (err) {
-      setConcludeError(err.message || 'Erro ao concluir o chamado.');
-    } finally {
-      setConcludeLoading(false);
-    }
-  };
 
   const handleHomologar = async (id) => {
     if (!window.confirm('Tem certeza de que deseja homologar a solução e fechar a Ordem de Serviço?')) return;
@@ -203,26 +191,58 @@ export default function Chamados() {
       {/* Grid de Estatísticas Dinâmico */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: 'Tickets Abertos', value: abertosCount, desc: 'Abertos ou Reabertos', progress: 'w-2/3', color: 'bg-blue-600', bgIcon: 'bg-blue-50', icon: (
-            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          )},
-          { label: 'Em Atendimento', value: atendimentoCount, desc: 'Técnicos trabalhando', progress: 'w-1/2', color: 'bg-amber-500', bgIcon: 'bg-amber-50', icon: (
-            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          )},
-          { label: 'Pausados / Peça', value: pausadosCount, desc: 'Aguardando suprimento', progress: 'w-1/4', color: 'bg-purple-500', bgIcon: 'bg-purple-50', icon: (
-            <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-            </svg>
-          )},
-          { label: 'SLA Cumprido', value: `${slaCompliance}%`, desc: 'Meta de SLA atendida', progress: `w-[${slaCompliance}%]`, color: 'bg-teal-500', bgIcon: 'bg-teal-50', icon: (
-            <svg className="w-5 h-5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          )}
+          { 
+            label: 'Tickets Abertos', 
+            value: abertosCount, 
+            desc: 'Abertos ou Reabertos', 
+            percent: tickets.length > 0 ? Math.min(100, (abertosCount / tickets.length) * 100) : 0, 
+            color: 'bg-blue-600', 
+            bgIcon: 'bg-blue-50', 
+            icon: (
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )
+          },
+          { 
+            label: 'Em Atendimento', 
+            value: atendimentoCount, 
+            desc: 'Técnicos trabalhando', 
+            percent: tickets.length > 0 ? Math.min(100, (atendimentoCount / tickets.length) * 100) : 0, 
+            color: 'bg-amber-500', 
+            bgIcon: 'bg-amber-50', 
+            icon: (
+              <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            )
+          },
+          { 
+            label: 'Pausados / Peça', 
+            value: pausadosCount, 
+            desc: 'Aguardando suprimento', 
+            percent: tickets.length > 0 ? Math.min(100, (pausadosCount / tickets.length) * 100) : 0, 
+            color: 'bg-purple-500', 
+            bgIcon: 'bg-purple-50', 
+            icon: (
+              <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            )
+          },
+          { 
+            label: 'SLA Cumprido', 
+            value: `${slaCompliance}%`, 
+            desc: 'Meta de SLA atendida', 
+            percent: parseFloat(slaCompliance) || 100, 
+            color: 'bg-teal-500', 
+            bgIcon: 'bg-teal-50', 
+            icon: (
+              <svg className="w-5 h-5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            )
+          }
         ].map((stat, idx) => (
           <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-36">
             <div className="flex justify-between items-start">
@@ -236,7 +256,7 @@ export default function Chamados() {
             </div>
             <div className="space-y-2 mt-4">
               <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full ${stat.color} w-3/4 rounded-full`} />
+                <div className={`h-full ${stat.color} rounded-full transition-all duration-500`} style={{ width: `${stat.percent}%` }} />
               </div>
               <span className="text-xs text-slate-400 font-medium">{stat.desc}</span>
             </div>
@@ -281,16 +301,16 @@ export default function Chamados() {
           </div>
 
           {/* Tabela de Tickets */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-none">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Código</th>
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Localização</th>
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Subcategoria / Descrição</th>
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Prioridade</th>
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Ações</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Código</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Localização</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Subcategoria / Descrição</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Prioridade</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="px-3.5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -304,112 +324,53 @@ export default function Chamados() {
                   filteredTickets.map((t) => {
                     const statusConfig = getStatusLabelAndStyle(t.status);
                     return (
-                      <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="p-4 text-sm font-bold text-slate-800">
-                          {t.code}
-                          {t.is_room_occupied && (
-                            <span className="ml-1.5 bg-rose-100 text-rose-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md uppercase">Ocupado</span>
-                          )}
+                      <tr 
+                        key={t.id} 
+                        onClick={() => handleOpenDetailModal(t)}
+                        className="hover:bg-sky-50/30 transition-colors cursor-pointer group"
+                      >
+                        <td className="px-3.5 py-3.5 text-sm font-bold text-slate-800 align-middle">
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <span className="group-hover:text-sky-600 transition-colors underline decoration-sky-400/0 group-hover:decoration-sky-400">
+                              {t.code}
+                            </span>
+                            {t.is_room_occupied && (
+                              <span className="bg-rose-100 text-rose-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md uppercase whitespace-nowrap">Ocupado</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="p-4 text-sm text-slate-700">
-                          <div className="font-semibold">{t.location_details}</div>
-                          <span className="text-[10px] text-slate-400 font-medium capitalize">{t.location_type}</span>
+                        <td className="px-3.5 py-3.5 text-sm text-slate-700 align-middle">
+                          <div className="font-semibold whitespace-nowrap">{t.location_details}</div>
+                          <span className="text-[10px] text-slate-400 font-medium capitalize block">{t.location_type}</span>
                         </td>
-                        <td className="p-4 text-sm text-slate-700 max-w-[240px]">
-                          <div className="font-bold text-slate-800">{t.subcategory}</div>
+                        <td className="px-3.5 py-3.5 text-sm text-slate-700 max-w-[200px] align-middle">
+                          <div className="font-bold text-slate-800 truncate">{t.subcategory}</div>
                           <p className="text-xs text-slate-400 truncate mt-0.5" title={t.description}>{t.description}</p>
                         </td>
-                        <td className="p-4 text-sm">
-                          <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${getPriorityStyle(t.priority)}`}>
+                        <td className="px-3.5 py-3.5 text-sm align-middle">
+                          <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold whitespace-nowrap inline-flex items-center justify-center ${getPriorityStyle(t.priority)}`}>
                             {t.priority}
                           </span>
                         </td>
-                        <td className="p-4">
-                          <span className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase ${statusConfig.style}`}>
+                        <td className="px-3.5 py-3.5 align-middle">
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide whitespace-nowrap inline-flex items-center justify-center ${statusConfig.style}`}>
                             {statusConfig.label}
                           </span>
                         </td>
-                        <td className="p-4 text-sm space-x-1.5 flex items-center h-16">
-                          {/* AÇÕES DE TÉCNICO E SUPERVISOR */}
-                          {user && (user.profile === 'Técnico' || user.profile === 'Supervisor') && (
-                            <>
-                              {(t.status === 'Aberto' || t.status === 'Reaberto') && (
-                                <button
-                                  onClick={() => handleIniciar(t.id)}
-                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-amber-500/10 transition-colors"
-                                >
-                                  Iniciar
-                                </button>
-                              )}
-                              {t.status === 'EmAtendimento' && (
-                                <>
-                                  <button
-                                    onClick={() => handlePausar(t.id)}
-                                    className="px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-purple-500/10 transition-colors"
-                                  >
-                                    Pausar
-                                  </button>
-                                  <button
-                                    onClick={() => openConcludeModal(t.id)}
-                                    className="px-2.5 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-indigo-500/10 transition-colors"
-                                  >
-                                    Concluir
-                                  </button>
-                                </>
-                              )}
-                              {t.status === 'AguardandoPeca' && (
-                                <button
-                                  onClick={() => handleRetomar(t.id)}
-                                  className="px-2.5 py-1 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-sky-500/10 transition-colors"
-                                >
-                                  Retomar
-                                </button>
-                              )}
-                            </>
-                          )}
-
-                          {/* AÇÕES EXCLUSIVAS DE CLIENTE */}
-                          {user && user.profile === 'Cliente' && t.status === 'Resolvido' && (
-                            <>
-                              <button
-                                onClick={() => handleHomologar(t.id)}
-                                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-emerald-500/10 transition-colors"
-                              >
-                                Homologar
-                              </button>
-                              <button
-                                onClick={() => handleReabrir(t.id)}
-                                className="px-2.5 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[10px] font-bold shadow-md shadow-rose-500/10 transition-colors"
-                              >
-                                Reabrir
-                              </button>
-                            </>
-                          )}
-
-                          {/* AÇÕES DE SUPERVISOR */}
-                          {user && user.profile === 'Supervisor' && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setSelectedTicketId(t.id);
-                                  setIsTransbordoOpen(true);
-                                }}
-                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-[10px] font-bold transition-colors"
-                              >
-                                Transbordo
-                              </button>
-                            </>
-                          )}
-
-                          {/* DOWNLOAD DA OS */}
+                        <td className="px-3.5 py-3.5 text-right align-middle">
                           <button
-                            onClick={() => handleDownloadPDF(t.id, t.code)}
-                            title="Baixar PDF da OS"
-                            className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDetailModal(t);
+                            }}
+                            title="Ver detalhes completos do chamado"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200/80 rounded-xl text-xs font-bold transition-all shadow-sm whitespace-nowrap"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            <svg className="w-3.5 h-3.5 text-sky-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
+                            Ver Detalhes
                           </button>
                         </td>
                       </tr>
@@ -438,7 +399,7 @@ export default function Chamados() {
                 <span className="text-slate-800 font-bold">{slaCompliance}%</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full bg-teal-500 rounded-full w-[${slaCompliance}%]`} />
+                <div className="h-full bg-teal-500 rounded-full transition-all duration-500" style={{ width: `${slaCompliance}%` }} />
               </div>
               <span className="text-xs text-slate-400 block font-semibold leading-relaxed">
                 Reflete a proporção de chamados de TI concluídos ou em andamento dentro do prazo limite (2 horas para prioridade crítica e alta, 24 horas para média/baixa).
@@ -452,7 +413,11 @@ export default function Chamados() {
             <div className="grid grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
               {tickets.filter(t => t.image_url).length > 0 ? (
                 tickets.filter(t => t.image_url).map(t => (
-                  <div key={t.id} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 cursor-pointer">
+                  <div 
+                    key={t.id} 
+                    onClick={() => handleOpenDetailModal(t)}
+                    className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 h-24 cursor-pointer"
+                  >
                     <img 
                       src={t.image_url} 
                       alt={`Evidência ${t.code}`}
@@ -491,59 +456,38 @@ export default function Chamados() {
         onSuccess={fetchTickets}
       />
 
-      {/* MODAL: CONCLUIR CHAMADO (TÉCNICO / RESOLUÇÃO SUMMARY) */}
-      {isConcludeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="font-bold text-slate-800 text-lg">Solução do Chamado</h2>
-              <button onClick={() => setIsConcludeOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <form onSubmit={handleConcluirSubmit} className="p-6 space-y-4">
-              {concludeError && (
-                <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-semibold rounded-xl">
-                  {concludeError}
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Resumo da Solução Técnica</label>
-                <textarea
-                  required
-                  rows="4"
-                  placeholder="Descreva detalhadamente qual foi o diagnóstico e a solução adotada..."
-                  value={resolutionSummary}
-                  onChange={(e) => setResolutionSummary(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-sky-500/50 resize-none"
-                />
-              </div>
-              
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsConcludeOpen(false)}
-                  disabled={concludeLoading}
-                  className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-semibold transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={concludeLoading}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold shadow-lg shadow-emerald-600/10 transition-colors"
-                >
-                  {concludeLoading ? 'Concluindo...' : 'Confirmar Conclusão'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL: DETALHES COMPLETOS DO CHAMADO (POPUP) */}
+      <DetalhesChamadoModal
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedDetailTicket(null);
+        }}
+        ticket={selectedDetailTicket}
+        user={user}
+        onIniciar={handleIniciar}
+        onPausar={handlePausar}
+        onRetomar={handleRetomar}
+        onConcluir={openConcludeModal}
+        onHomologar={handleHomologar}
+        onReabrir={handleReabrir}
+        onTransbordo={(id) => {
+          setSelectedTicketId(id);
+          setIsTransbordoOpen(true);
+        }}
+        onDownloadPDF={handleDownloadPDF}
+      />
+
+      {/* MODAL: CONCLUIR CHAMADO (TÉCNICO / RESOLUÇÃO SUMMARY & FOTO) */}
+      <ConcluirChamadoModal
+        isOpen={isConcludeOpen}
+        onClose={() => {
+          setIsConcludeOpen(false);
+          setSelectedConcludeTicket(null);
+        }}
+        ticket={selectedConcludeTicket}
+        onSuccess={fetchTickets}
+      />
 
     </div>
   );

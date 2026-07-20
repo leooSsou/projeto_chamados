@@ -7,6 +7,7 @@ from alembic import context
 from app.core.database import Base
 from app.models.usuario import User
 from app.models.chamado import Ticket, TransferLog, Comment, NotificationLog
+from app.models.configuracao import SystemOption
 from app.core.config import settings
 
 # Obtém o objeto de configuração do Alembic
